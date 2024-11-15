@@ -1,11 +1,12 @@
 let productsByID = {};
+let currentProduct = null;
 let isLoggedIn = false;
 
 //Add Lambda URL and API key here!
 let requestURL = "";
 let apiKey = "";
 
-async function getProducts(){
+async function getProducts(){    
     let productPromise = await fetch(
         requestURL,
         {
@@ -19,7 +20,7 @@ async function getProducts(){
     
     let productResponse = await productPromise;
     let productData = await productResponse.json();
-
+   
     $("#ProductRow").empty();
     
     for (const product of productData){
@@ -60,6 +61,7 @@ async function getProducts(){
 
 function createDetailTable(productID){
     $("#DetailTable").empty();
+    currentProductID = productID;
     let detailObject = productsByID[productID];
     let tableBody = $("<tbody>");
     
@@ -70,6 +72,102 @@ function createDetailTable(productID){
         tableBody.append(row);
     }
     $("#DetailTable").append(tableBody);
+}
+
+function addToCart(){
+    let productID = currentProductID;
+    let quantity = $("#cartQty").val();
+    console.log("Check out " + quantity + " of " + currentProductID);
+    goProductTab();
+}
+
+function createCartTable(){
+    //cart contents should contain cartList and cartPrice
+    console.log("Getting cart contents");
+    let cartPrice = 123.45;
+    let cartList = [
+        {"name": "item1", "price": 50.00, "quantity": 2, "productID": "A"},
+        {"name": "item2", "price": 20.00, "quantity": 1, "productID": "B"},
+        {"name": "item3", "price": 3.45, "quantity": 1, "productID": "C"},
+    ];
+    
+    $("#CartTable").empty();
+    
+    let headerRow = $("<tr>");
+    const colNames = ["Name", "Price", "Qty", "Edit"];
+    for (const colName of colNames){
+        headerRow.append( $("<th>").text(colName) );       
+    }
+    let tableHeader = $("<thead>").append(headerRow);
+    $("#CartTable").append(tableHeader);
+    
+    let tableBody = $("<tbody>");    
+    for ( const cartObject of cartList ){
+        let row = $("<tr>");
+        let incrButton = $("<button>").text("+").addClass("btn btn-success").click( function(){
+            incrProduct(cartObject["productID"]);
+        });
+        let decrButton = $("<button>").text("-").addClass("btn btn-danger").click( function(){
+            decrProduct(cartObject["productID"]);
+        });
+        let qtyButtons = $("<div>").append(incrButton).append(decrButton)
+        row.append( $("<td>").text( cartObject["name"] ) );
+        row.append( $("<td>").text( "$" + cartObject["price"].toFixed(2) ) );
+        row.append( $("<td>").text( cartObject["quantity"] ) );
+        row.append( $("<td>").append( qtyButtons ) );
+        tableBody.append(row);
+    }
+    
+    let priceRow = $("<tr>");
+    priceRow.append( $("<th>").text( "Total" ) );
+    priceRow.append( $("<td>").text( "$" + cartPrice.toFixed(2) ) );
+    priceRow.append( $("<td>") );
+    priceRow.append( $("<td>") );
+    tableBody.append(priceRow);
+    
+    $("#CartTable").append(tableBody);
+}
+
+function clearCart(){
+    console.log("Deleting all items from cart");
+    
+    createCartTable();          
+}
+
+function checkoutCart(){
+    console.log("Checking out all items in cart");
+    
+    createCartTable(); 
+}
+
+function incrProduct(productID){
+    console.log("Incrementing " + productID);
+    createCartTable();    
+}
+
+function decrProduct(productID){
+    console.log("Decrementing " + productID);
+    createCartTable();
+}
+
+function initManagePage(){
+    console.log("Initializing values");
+}
+
+function addItem(){
+    console.log("Adding item");
+}
+
+function deleteItem(){
+    console.log("Removing item");
+}
+
+function loadUpdateForm(productID){
+    console.log("Updating form values");
+}
+
+function updateItem(){
+    console.log("Updating item");
 }
 
 function Login(){
@@ -88,8 +186,7 @@ function goLoginTab(){
     $("#ProductNav").removeClass("active"); 
     $("#CartNav").removeClass("active"); 
     $("#ManageNav").removeClass("active"); 
-    
-    
+        
     //log out here
     isLoggedIn = false;
     $("#LoginNav").text("Login")
@@ -155,7 +252,7 @@ function goCartTab(){
     $("#ProductNav").removeClass("active"); 
     $("#ManageNav").removeClass("active"); 
     
-    getProducts();
+    createCartTable();
 
     $("#CartNav").addClass("active"); 
     $("#CartTab").show();
@@ -176,7 +273,7 @@ function goManageTab(){
     $("#ProductNav").removeClass("active"); 
     $("#CartNav").removeClass("active"); 
     
-    getProducts();
+    initManagePage();
     
     $("#ManageNav").addClass("active"); 
     $("#ManageTab").show();

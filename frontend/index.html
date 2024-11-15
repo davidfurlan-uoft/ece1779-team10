@@ -48,39 +48,112 @@
                     </div>
                     <div class="row row-cols-auto gx-2">
                         <div class="col">
-                            <input type="number" class="form-control" style="width: 70px;" placeholder="1" id="cartQty"/>
+                            <input type="number" class="form-control" style="width: 70px;" value="1" id="cartQty"/>
                         </div>
                         <div class="col">
-                            <button type="button" class="btn btn-success"> Add to Cart </button>
+                            <button type="button" class="btn btn-success" onclick="addToCart()"> Add to Cart </button>
                         </div>                                                
                     </div>
                 </div>
                 <div class="p-2" id="CartTab" style="display: none;">
                     <div>                    
                         <table class="table table-bordered" id="CartTable">
-                            <tr>
-                                <th>Name</th>
-                                <th>Price</th>
-                            </tr>
                         </table>                    
                     </div>
-                    <button type="button" class="btn btn-danger"> Clear </button>
-                    <button type="button" class="btn btn-success"> Checkout </button>
+                    <button type="button" class="btn btn-danger" onclick="clearCart()"> Clear </button>
+                    <button type="button" class="btn btn-success" onclick="checkoutCart()"> Checkout </button>
                 </div>
                 <div class="p-2" id="ManageTab" style="display: none;">
                     <div>
                         <h3>Add an Item</h3>
-                        <span>Input Form and Create Button</span>
+                        <div class="my-1 row">
+                            <label for="addFormName" class="form-label col-3">Name</label>
+                            <div class="col-9">
+                                <input id="addFormName" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="addFormDesc" class="form-label col-3">Description</label>
+                            <div class="col-9">
+                                <input id="addFormDesc" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="addFormImage" class="form-label col-3">Image</label>
+                            <div class="col-9">
+                                <input id="addFormImage" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="addFormStock" class="form-label col-3">Stock</label>
+                            <div class="col-9">
+                                <input id="addFormStock" type="number" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="addFormPrice" class="form-label col-3">Price</label>
+                            <div class="col-9">
+                                <input id="addFormPrice" type="number" step="0.01" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="addItem()"> Add </button>
                     </div>
                     <hr>
                     <div>
                         <h3>Remove an Item</h3>
-                        <span>Dropdown and Delete Button</span>
+                        <div class="my-1 row">
+                            <div class="col-3">
+                                <button type="button" class="btn btn-danger" onclick="deleteItem()"> Delete </button>
+                            </div>
+                            <div class="col-9">
+                                <select name="removeSelect" id="removeSelect" class="form-control">
+                                    <option value="" disabled selected> Select a Product</option>
+                                </select>
+                            </div>                            
+                        </div>
                     </div>
                     <hr>
                     <div>
                         <h3>Edit an Item</h3>
-                        <span>Dropdown, Input Form, and Update Button</span>
+                        <div class="my-3 row">
+                            <label for="editSelect" class="form-label col-3">Product</label>
+                            <div class="col-9">
+                                <select name="editSelect" id="editSelect" class="form-control" onchange="loadUpdateForm(this.value)">
+                                    <option value="" disabled selected> Select a Product </option>
+                                </select>
+                            </div>                            
+                        </div>
+                        <div class="my-1 row">
+                            <label for="editFormName" class="form-label col-3">Name</label>
+                            <div class="col-9">
+                                <input id="editFormName" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="editFormDesc" class="form-label col-3">Description</label>
+                            <div class="col-9">
+                                <input id="editFormDesc" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="editFormImage" class="form-label col-3">Image</label>
+                            <div class="col-9">
+                                <input id="editFormImage" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="editFormStock" class="form-label col-3">Stock</label>
+                            <div class="col-9">
+                                <input id="editFormStock" type="number" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="my-1 row">
+                            <label for="editFormPrice" class="form-label col-3">Price</label>
+                            <div class="col-9">
+                                <input id="editFormPrice" type="number" step="0.01" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="updateItem()"> Update </button>
                     </div>
                     <hr>
                 </div>
