@@ -24,18 +24,7 @@
         <div class="row">
             <div class="col-2"></div>
             <div class="col-8">
-                <div class="p-2" id="LoginTab">
-                    <div class="w-50 p-2 mx-auto">
-                        <input type="text" class="form-control" placeholder="Username" id="LoginUser">
-                    </div>
-                    <div class="w-50 p-2 mx-auto">
-                        <input type="password" class="form-control" placeholder="Password" id="LoginPass">
-                    </div>
-                    <div class="w-50 p-2 mx-auto">
-                        <button type="button" class="btn btn-success" onclick="Login()"> Login </button>
-                    </div>
-                </div>
-                <div class="p-2" id="ProductTab" style="display: none;">
+                <div class="p-2" id="ProductTab">
                     <div class="row row-cols-3" id="ProductRow">
                     </div>
                 </div>
@@ -48,7 +37,7 @@
                     </div>
                     <div class="row row-cols-auto gx-2">
                         <div class="col">
-                            <input type="number" class="form-control" style="width: 70px;" value="1" id="cartQty"/>
+                            <input type="number" class="form-control" style="width: 70px;" value="1" min="1" id="cartQty"/>
                         </div>
                         <div class="col">
                             <button type="button" class="btn btn-success" onclick="addToCart()"> Add to Cart </button>
@@ -66,6 +55,12 @@
                 <div class="p-2" id="ManageTab" style="display: none;">
                     <div>
                         <h3>Add an Item</h3>
+                        <div class="my-1 row">
+                            <label for="addFormID" class="form-label col-3">Product ID</label>
+                            <div class="col-9">
+                                <input id="addFormID" type="text" class="form-control">
+                            </div>
+                        </div>
                         <div class="my-1 row">
                             <label for="addFormName" class="form-label col-3">Name</label>
                             <div class="col-9">
@@ -116,7 +111,7 @@
                     <div>
                         <h3>Edit an Item</h3>
                         <div class="my-3 row">
-                            <label for="editSelect" class="form-label col-3">Product</label>
+                            <label for="editSelect" class="form-label col-3">Product ID</label>
                             <div class="col-9">
                                 <select name="editSelect" id="editSelect" class="form-control" onchange="loadUpdateForm(this.value)">
                                     <option value="" disabled selected> Select a Product </option>
@@ -158,7 +153,14 @@
                     <hr>
                 </div>
             </div>
-            <div class="col-2"></div>
+            <div class="col-2">
+                <div class="toast align-items-center hide" id="ToastDiv">
+                    <div class="d-flex">
+                        <div class="toast-body" id="ToastMessage"></div>
+                        <button type="button" class="btn-close m-auto me-2" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
   </body>

@@ -1,20 +1,62 @@
 let productsByID = {};
 let currentProduct = null;
+let id_token = null;
+let access_token = null;
 let isLoggedIn = false;
+let toast = null;
 
-//Add Lambda URL and API key here!
-let requestURL = "";
-let apiKey = "";
+const cognitoDomain = ""; // Cognito Hosted UI domain
+const clientId = ""; // Cognito App Client ID
+const clientSecret = "" //Cognito App Client secret
+const redirectUri = ""; // S3 static website endpoint
+const apiGatewayUrl = ""; // API Gateway base URL
+
+async function exchangeCodeForTokens(authCode) {
+    const url = `${cognitoDomain}/oauth2/token`;
+    const data = {
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: authCode,
+        redirect_uri: redirectUri
+    };
+
+    const formBody = Object.keys(data)
+        .map(key => key + '=' + encodeURIComponent(data[key]))
+        .join('&');
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formBody
+        });
+        
+        const tokens = await response.json();
+        
+        if ( !("id_token" in tokens) ){
+            throw new Error("Invalid code");            
+        }
+               
+        id_token = tokens.id_token;
+        access_token = tokens.access_token;              
+        
+        isLoggedIn = true;
+        $("#LoginNav").text("Logout");         
+    } catch (error) {
+        $("#ToastMessage").text("Error logging in, please try again");
+        toast.show();      
+    }
+}
 
 async function getProducts(){    
     let productPromise = await fetch(
-        requestURL,
+        //requestURL,
+        apiGatewayUrl + "/products",
         {
             "method": "GET",
-            "headers": {
-                "x-api-key": apiKey
-            },
-            "contentType": "text/plain"
         }
     );
     
@@ -22,6 +64,7 @@ async function getProducts(){
     let productData = await productResponse.json();
    
     $("#ProductRow").empty();
+    productsByID = {};
     
     for (const product of productData){
         let newCol = $("<div>").addClass(["col", "border"]);
@@ -43,10 +86,11 @@ async function getProducts(){
         });
         
         productsByID[ product["productID"] ] = {
-            Name: product["name"],
-            Description: product["description"],            
-            Price: '$' + product["price"],
-            Stock: product["stock"],  
+            "name": product["name"],
+            "description": product["description"],            
+            "image": product["image"], 
+            "price": Number(product["price"]),
+            "stock": Number(product["stock"]),  
         };
         
         $("#ProductRow").append(newCol);
@@ -66,35 +110,98 @@ function createDetailTable(productID){
     let tableBody = $("<tbody>");
     
     for ( const [title, value] of Object.entries(detailObject) ){
+        if(title == "image"){
+            //don't display image reference
+            continue;
+        }
+        
         let row = $("<tr>");
         row.append( $("<th>").text(title.toUpperCase()) );
-        row.append( $("<td>").text(value) );
+        if(title == "price"){
+            row.append( $("<td>").text("$" + value) ); 
+        }
+        else {
+            row.append( $("<td>").text(value) );
+        }        
         tableBody.append(row);
     }
     $("#DetailTable").append(tableBody);
 }
 
-function addToCart(){
+async function addToCart(){
     let productID = currentProductID;
+    
     let quantity = $("#cartQty").val();
-    console.log("Check out " + quantity + " of " + currentProductID);
+    if(!id_token){
+        console.log("Please log in");
+        goProductTab();
+    }
+    
+    let addToCartPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",            
+            "body": JSON.stringify({
+                "operation": "add",
+                "productID": currentProductID,
+                "quantity": quantity,
+            }),
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let productResponse = await addToCartPromise;
+    let statusData = await productResponse.json();
+    
+    $("#ToastMessage").text(statusData.message);
+    toast.show();   
+    
     goProductTab();
 }
 
-function createCartTable(){
-    //cart contents should contain cartList and cartPrice
-    console.log("Getting cart contents");
-    let cartPrice = 123.45;
-    let cartList = [
-        {"name": "item1", "price": 50.00, "quantity": 2, "productID": "A"},
-        {"name": "item2", "price": 20.00, "quantity": 1, "productID": "B"},
-        {"name": "item3", "price": 3.45, "quantity": 1, "productID": "C"},
-    ];
-    
+async function createCartTable(){
     $("#CartTable").empty();
     
+    if(!id_token){
+        $("#ToastMessage").text("Please log in!");
+        toast.show();
+        goProductTab();
+    }
+    
+    let cartPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/cart",
+        {
+            "method": "GET",            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();
+    
+    let cartList = [];
+    let cartPrice = 0.0;
+    for ( const [pid, qty] of Object.entries(cartData) ){
+        cartItem = {
+            "name": productsByID[pid]["name"],
+            "price": productsByID[pid]["price"],
+            "quantity": qty,
+            "productID": pid,            
+        }
+        cartPrice += cartItem["quantity"] * cartItem["price"];
+        cartList.push(cartItem);
+    }
+    
     let headerRow = $("<tr>");
-    const colNames = ["Name", "Price", "Qty", "Edit"];
+    const colNames = ["Name", "Price", "Qty", "Update Qty", "Delete Item"];
     for (const colName of colNames){
         headerRow.append( $("<th>").text(colName) );       
     }
@@ -110,11 +217,15 @@ function createCartTable(){
         let decrButton = $("<button>").text("-").addClass("btn btn-danger").click( function(){
             decrProduct(cartObject["productID"]);
         });
+        let delButton = $("<button>").text("X").addClass("btn btn-danger").click( function(){
+            delProduct(cartObject["productID"]);
+        });
         let qtyButtons = $("<div>").append(incrButton).append(decrButton)
         row.append( $("<td>").text( cartObject["name"] ) );
         row.append( $("<td>").text( "$" + cartObject["price"].toFixed(2) ) );
         row.append( $("<td>").text( cartObject["quantity"] ) );
         row.append( $("<td>").append( qtyButtons ) );
+        row.append( $("<td>").append( delButton ) );
         tableBody.append(row);
     }
     
@@ -123,89 +234,360 @@ function createCartTable(){
     priceRow.append( $("<td>").text( "$" + cartPrice.toFixed(2) ) );
     priceRow.append( $("<td>") );
     priceRow.append( $("<td>") );
+    priceRow.append( $("<td>") );
     tableBody.append(priceRow);
     
     $("#CartTable").append(tableBody);
 }
 
-function clearCart(){
-    console.log("Deleting all items from cart");
+async function clearCart(){    
+    if(!id_token){
+        $("#ToastMessage").text("Please log in!");
+        toast.show();
+        goProductTab();
+    }
+    
+    let cartPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "deleteall",
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();    
+        
+    $("#ToastMessage").text(cartData.message);
+    toast.show(); 
     
     createCartTable();          
 }
 
-function checkoutCart(){
-    console.log("Checking out all items in cart");
+async function checkoutCart(){
+    if(!id_token){
+        $("#ToastMessage").text("Please log in!");
+        toast.show(); 
+        goProductTab();
+    }
+    
+    let cartPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "checkout",
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();
+                
+    $("#ToastMessage").text(cartData.message);
+    toast.show(); 
     
     createCartTable(); 
 }
 
-function incrProduct(productID){
-    console.log("Incrementing " + productID);
+async function incrProduct(productID){
+    let cartPromise = await fetch(
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "add",
+                "productID": productID,
+                "quantity": 1,
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();
+                
+    $("#ToastMessage").text(cartData.message);
+    toast.show();
+    
     createCartTable();    
 }
 
-function decrProduct(productID){
-    console.log("Decrementing " + productID);
+async function decrProduct(productID){    
+    let cartPromise = await fetch(
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "add",
+                "productID": productID,
+                "quantity": -1,
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();
+            
+    $("#ToastMessage").text(cartData.message);
+    toast.show();
+    
     createCartTable();
 }
 
-function initManagePage(){
-    console.log("Initializing values");
+async function delProduct(productID){
+    let cartPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/cart",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "delete",
+                "productID": productID,
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let cartResponse = await cartPromise;
+    let cartData = await cartResponse.json();
+    
+    $("#ToastMessage").text(cartData.message);
+    toast.show();
+    
+    createCartTable();
 }
 
-function addItem(){
-    console.log("Adding item");
+function initManagePage(){        
+    $("#removeSelect").empty();    
+    $("#removeSelect").append(
+        $("<option>")
+        .text("Select a Product")
+        .attr({"disabled": true, "selected": true, "value": ""})
+    );
+    
+    $("#editSelect").empty();
+    $("#editSelect").append(
+        $("<option>")
+        .text("Select a Product")
+        .attr({"disabled": true, "selected": true, "value": ""})
+    );
+    
+    for ( const [prodID, prodInfo] of Object.entries(productsByID) ){
+        $("#removeSelect").append(
+            $("<option>")
+            .text(prodID)
+            .attr("value", prodID)            
+        );
+        $("#editSelect").append(
+            $("<option>")
+            .text(prodID)
+            .attr("value", prodID)
+        );
+    }
+
+    $("#addFormID").val("");
+    $("#addFormName").val("");
+    $("#addFormImage").val("");
+    $("#addFormPrice").val("");
+    $("#addFormStock").val("");
+    $("#addFormDesc").val("");
+    
+    $("#editFormName").val("");
+    $("#editFormDesc").val("");
+    $("#editFormImage").val("");
+    $("#editFormStock").val("");
+    $("#editFormPrice").val("");      
 }
 
-function deleteItem(){
-    console.log("Removing item");
+async function addItem(){    
+    const prodID = $("#addFormID").val();
+    const prodName = $("#addFormName").val();
+    const prodImage = $("#addFormImage").val();
+    const prodPrice = $("#addFormPrice").val();
+    const prodStock = $("#addFormStock").val();
+    const prodDesc = $("#addFormDesc").val();
+    
+    let itemPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/manage",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "add",
+                "ProductInfo": {
+                    "productID": prodID,
+                    "name": prodName,
+                    "image": prodImage,
+                    "price": prodPrice,
+                    "stock": prodStock,
+                    "description": prodDesc,                    
+                }
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let itemResponse = await itemPromise;
+    let itemData = await itemResponse.json();
+    
+    $("#ToastMessage").text(itemData.message);
+    toast.show();
+           
+    await getProducts();
+    initManagePage();
+}
+
+async function deleteItem(){
+    const prodID = $("#removeSelect").val();
+    
+    let itemPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/manage",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "delete",
+                "ProductInfo": {
+                    "productID": prodID,                   
+                }
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let itemResponse = await itemPromise;
+    let itemData = await itemResponse.json();
+    
+    $("#ToastMessage").text(itemData.message);
+    toast.show();
+    
+    await getProducts();
+    initManagePage();
 }
 
 function loadUpdateForm(productID){
-    console.log("Updating form values");
+    selectedID = $("#editSelect").val();
+     
+    let productInfo = productsByID[selectedID];
+    $("#editFormName").val(productInfo["name"]);
+    $("#editFormDesc").val(productInfo["description"]);
+    $("#editFormImage").val(productInfo["image"]);
+    $("#editFormStock").val(productInfo["stock"]);
+    $("#editFormPrice").val(productInfo["price"]);  
 }
 
-function updateItem(){
-    console.log("Updating item");
+async function updateItem(){    
+    const prodID = $("#editSelect").val();
+    const prodName = $("#editFormName").val();
+    const prodImage = $("#editFormImage").val();
+    const prodPrice = $("#editFormPrice").val();
+    const prodStock = $("#editFormStock").val();
+    const prodDesc = $("#editFormDesc").val();
+    
+    let itemPromise = await fetch(
+        //requestURL,
+        apiGatewayUrl + "/manage",
+        {
+            "method": "POST",
+            "body": JSON.stringify({
+                "operation": "update",
+                "ProductInfo": {
+                    "productID": prodID,
+                    "name": prodName,
+                    "image": prodImage,
+                    "price": prodPrice,
+                    "stock": prodStock,
+                    "description": prodDesc,                    
+                }
+            }),            
+            "headers": {
+                "Content-type": "application/json",
+                "Authorization": id_token,
+            }            
+        }
+    );
+    
+    let itemResponse = await itemPromise;
+    let itemData = await itemResponse.json();
+    
+    $("#ToastMessage").text(itemData.message);
+    toast.show();
+    
+    await getProducts();
+    initManagePage();    
 }
 
 function Login(){
     //log in here
-    isLoggedIn = true;
-    $("#LoginNav").text("Logout")
-    goProductTab();
+    const loginUrl = `${cognitoDomain}/login?response_type=code`
+        + `&client_id=${encodeURIComponent(clientId)}`
+        + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+        + `&scope=email+openid+phone`;
+    window.location.href = loginUrl;
+}
+
+function Logout() {
+    //log out here
+    const logoutUrl = `${cognitoDomain}/logout?client_id=${encodeURIComponent(clientId)}`
+        + `&logout_uri=${encodeURIComponent(redirectUri)}`;
+    
+    id_token = null;
+    access_token = null;        
+    isLoggedIn = false;    
+    $("#LoginNav").text("Login"); 
+    
+    window.location.href = logoutUrl;
 }
 
 function goLoginTab(){
-    $("#DetailTab").hide();
-    $("#ProductTab").hide();
-    $("#CartTab").hide();
-    $("#ManageTab").hide();
-    $("#DetailNav").removeClass("active"); 
-    $("#ProductNav").removeClass("active"); 
-    $("#CartNav").removeClass("active"); 
-    $("#ManageNav").removeClass("active"); 
-        
-    //log out here
-    isLoggedIn = false;
-    $("#LoginNav").text("Login")
-    
-    $("#LoginNav").addClass("active");   
-    $("#LoginTab").show();
+    if(isLoggedIn){
+        Logout() 
+    }
+    else{
+        Login();
+    }
 }
 
 function goDetailTab(productID){
     if(!isLoggedIn){
         //only change tab when logged in
+        $("#ToastMessage").text("Please log in!");
+        toast.show();        
         return;
     }
     
     $("#ProductTab").hide();
-    $("#LoginTab").hide();
     $("#CartTab").hide();
-    $("#ManageTab").hide();
-    $("#LoginNav").removeClass("active"); 
+    $("#ManageTab").hide(); 
     $("#ProductNav").removeClass("active"); 
     $("#CartNav").removeClass("active"); 
     $("#ManageNav").removeClass("active"); 
@@ -216,21 +598,15 @@ function goDetailTab(productID){
     $("#DetailTab").show();
 };
 
-function goProductTab(){
-    if(!isLoggedIn){
-        //only change tab when logged in
-        return;
-    }
-    
+function goProductTab(){    
     $("#DetailTab").hide();
-    $("#LoginTab").hide();
     $("#CartTab").hide();
     $("#ManageTab").hide();
-    $("#LoginNav").removeClass("active"); 
     $("#DetailNav").removeClass("active"); 
     $("#CartNav").removeClass("active"); 
     $("#ManageNav").removeClass("active"); 
     
+    $("#cartQty").val(1);    
     getProducts();
     
     $("#ProductNav").addClass("active"); 
@@ -240,14 +616,16 @@ function goProductTab(){
 function goCartTab(){
     if(!isLoggedIn){
         //only change tab when logged in
+        $("#ToastMessage").text("Please log in!");
+        toast.show();        
         return;
     }
     
     $("#DetailTab").hide();
-    $("#LoginTab").hide();
+    //$("#LoginTab").hide();
     $("#ProductTab").hide();
     $("#ManageTab").hide();
-    $("#LoginNav").removeClass("active"); 
+    //$("#LoginNav").removeClass("active"); 
     $("#DetailNav").removeClass("active"); 
     $("#ProductNav").removeClass("active"); 
     $("#ManageNav").removeClass("active"); 
@@ -261,11 +639,13 @@ function goCartTab(){
 function goManageTab(){
     if(!isLoggedIn){
         //only change tab when logged in
+        $("#ToastMessage").text("Please log in!");
+        toast.show();        
         return;
     }
     
     $("#DetailTab").hide();
-    $("#LoginTab").hide();
+    //$("#LoginTab").hide();
     $("#CartTab").hide();
     $("#ProductTab").hide();
     $("#LoginNav").removeClass("active"); 
@@ -279,6 +659,17 @@ function goManageTab(){
     $("#ManageTab").show();
 }
 
-//window.onload = (event) => {
-    //getProducts();
-//}
+window.onload = (event) => {
+    //check if returning from a login
+    const urlParams = new URLSearchParams(window.location.search);
+    const authCode = urlParams.get('code');
+    if (authCode) {
+        exchangeCodeForTokens(authCode);
+    }
+    
+    //initialize toast
+    toast = new bootstrap.Toast($("#ToastDiv"));
+    
+    //load main page
+    goProductTab();
+}
