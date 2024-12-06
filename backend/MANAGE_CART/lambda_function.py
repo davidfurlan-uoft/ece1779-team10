@@ -64,8 +64,14 @@ def lambda_handler(event, context):
                 )
                 message = 'Cart added to successfully.'        
         elif operation == 'delete':
-            # Remove the product from the user's cart
-            # TODO add product # back to stock
+            # Add product back to stock
+            response = table.get_item(Key={'UserID': user_id})
+            cart_items = response.get('Item', {}).get('CartItems', {})            
+            cart_qty = Decimal(cart_items.get(product_id, 0))
+            current_stock = getProductStock(prod_table, product_id)
+            updateProductStock(prod_table, product_id, current_stock + cart_qty)
+
+            # Remove the product from the user's cart   
             table.update_item(
                 Key={'UserID': user_id},
                 UpdateExpression='REMOVE CartItems.#pid',
